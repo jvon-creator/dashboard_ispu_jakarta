@@ -226,7 +226,6 @@ st.markdown(
             margin-bottom: 1rem;
         }
 
-
         /* KPI menggunakan komponen native Streamlit agar HTML tidak muncul sebagai teks. */
         div[data-testid="stMetric"] {
             background: linear-gradient(180deg, rgba(20, 43, 50, .90), rgba(12, 26, 31, .90));
@@ -351,23 +350,19 @@ def load_data(path: Path = DATA_PATH) -> pd.DataFrame:
     df["lon"] = df["stasiun"].map(lambda x: STATION_COORDS.get(x, (np.nan, np.nan))[1])
     return df
 
-
 def fmt_number(value: float, digits: int = 1) -> str:
     if pd.isna(value):
         return "-"
     return f"{value:,.{digits}f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
 
 def fmt_pct(value: float, digits: int = 1) -> str:
     if pd.isna(value):
         return "-"
     return f"{value * 100:,.{digits}f}%".replace(",", "X").replace(".", ",").replace("X", ".")
 
-
 def mode_value(series: pd.Series) -> str:
     counts = series.dropna().value_counts()
     return "-" if counts.empty else str(counts.index[0])
-
 
 def get_plot_template() -> go.layout.Template:
     template = go.layout.Template()
@@ -385,17 +380,13 @@ def get_plot_template() -> go.layout.Template:
     )
     return template
 
-
 PLOT_TEMPLATE = get_plot_template()
-
 
 def polish_figure(fig: go.Figure, height: int = 460) -> go.Figure:
     fig.update_layout(template=PLOT_TEMPLATE, height=height)
     fig.update_xaxes(title_font=dict(color="#A6C8D0"), tickfont=dict(color="#A6C8D0"))
     fig.update_yaxes(title_font=dict(color="#A6C8D0"), tickfont=dict(color="#A6C8D0"))
     return fig
-
-
 
 def insight_card(title: str, analysis: str, action: str) -> None:
     st.markdown(
@@ -409,7 +400,6 @@ def insight_card(title: str, analysis: str, action: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def section_header(kicker: str, title: str, copy: str) -> None:
     st.markdown(
         f"""
@@ -419,7 +409,6 @@ def section_header(kicker: str, title: str, copy: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-
 
 def describe_trend(df: pd.DataFrame) -> tuple[str, float]:
     annual = df.groupby("tahun", as_index=False)["max"].mean().sort_values("tahun")
@@ -436,13 +425,11 @@ def describe_trend(df: pd.DataFrame) -> tuple[str, float]:
         direction = "relatif fluktuatif/stabil"
     return direction, slope
 
-
 def safe_join(items: Iterable[str], max_items: int = 3) -> str:
     selected = [str(i) for i in list(items)[:max_items]]
     if not selected:
         return "-"
     return ", ".join(selected)
-
 
 # ============================================================
 # Load data
@@ -525,7 +512,7 @@ if fdf.empty:
     st.stop()
 
 # ============================================================
-# Global KPIs
+# Global KPIs (Metode st.metric Bebas Error)
 # ============================================================
 avg_ispu = fdf["max"].mean()
 unhealthy_pct = fdf["is_unhealthy_or_worse"].mean()
@@ -558,10 +545,12 @@ kpi_items = [
     ),
 ]
 
+# Menggunakan Streamlit native layout untuk metrik (CSS kustom sudah memformatnya secara elegan)
 kpi_cols = st.columns(4)
 for col, (label, value, note) in zip(kpi_cols, kpi_items):
     with col:
-        st.metric(label=label, value=value, help=note)
+        st.metric(label=label, value=value)
+        # Menambahkan tag pendukung dengan unsafe_allow_html agar tidak menjadi teks mentah
         st.markdown(f"<div class='kpi-note'>{note}</div>", unsafe_allow_html=True)
 
 st.caption(f"Periode dashboard aktif: {period_label}. Seluruh grafik dan insight mengikuti filter yang dipilih pada panel kiri.")
