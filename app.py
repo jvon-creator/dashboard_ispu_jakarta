@@ -226,36 +226,43 @@ st.markdown(
             margin-bottom: 1rem;
         }
 
-        /* KPI menggunakan komponen native Streamlit agar HTML tidak muncul sebagai teks. */
-        div[data-testid="stMetric"] {
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin: 18px 0 12px;
+        }
+        @media (max-width: 980px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 640px) { .metric-grid { grid-template-columns: 1fr; } }
+        .metric-card {
             background: linear-gradient(180deg, rgba(20, 43, 50, .90), rgba(12, 26, 31, .90));
             border: 1px solid var(--stroke);
             border-radius: 22px;
             padding: 18px 18px 16px;
             box-shadow: 0 18px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05);
-            min-height: 132px;
         }
-        div[data-testid="stMetric"] label {
-            font-family: 'IBM Plex Mono', monospace !important;
-            color: #91E8F5 !important;
-            font-size: .74rem !important;
-            font-weight: 700 !important;
+        .metric-label {
+            font-family: 'IBM Plex Mono', monospace;
+            color: #91E8F5;
+            font-size: .74rem;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .07em;
+            margin-bottom: 9px;
         }
-        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-            font-family: 'Space Grotesk', 'Inter', sans-serif !important;
-            color: var(--text) !important;
-            font-size: 2.05rem !important;
+        .metric-value {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            color: var(--text);
+            font-size: 2.14rem;
             letter-spacing: -.055em;
             font-weight: 700;
+            line-height: .98;
         }
-        .kpi-note {
+        .metric-note {
             color: var(--muted);
-            font-size: .84rem;
-            line-height: 1.42;
-            margin: -14px 0 12px 0;
-            padding: 0 6px;
+            font-size: .86rem;
+            line-height: 1.45;
+            margin-top: 10px;
         }
         .card {
             background: linear-gradient(180deg, rgba(18, 39, 46, .82), rgba(8, 20, 24, .86));
@@ -350,19 +357,23 @@ def load_data(path: Path = DATA_PATH) -> pd.DataFrame:
     df["lon"] = df["stasiun"].map(lambda x: STATION_COORDS.get(x, (np.nan, np.nan))[1])
     return df
 
+
 def fmt_number(value: float, digits: int = 1) -> str:
     if pd.isna(value):
         return "-"
     return f"{value:,.{digits}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 
 def fmt_pct(value: float, digits: int = 1) -> str:
     if pd.isna(value):
         return "-"
     return f"{value * 100:,.{digits}f}%".replace(",", "X").replace(".", ",").replace("X", ".")
 
+
 def mode_value(series: pd.Series) -> str:
     counts = series.dropna().value_counts()
     return "-" if counts.empty else str(counts.index[0])
+
 
 def get_plot_template() -> go.layout.Template:
     template = go.layout.Template()
@@ -380,13 +391,26 @@ def get_plot_template() -> go.layout.Template:
     )
     return template
 
+
 PLOT_TEMPLATE = get_plot_template()
+
 
 def polish_figure(fig: go.Figure, height: int = 460) -> go.Figure:
     fig.update_layout(template=PLOT_TEMPLATE, height=height)
     fig.update_xaxes(title_font=dict(color="#A6C8D0"), tickfont=dict(color="#A6C8D0"))
     fig.update_yaxes(title_font=dict(color="#A6C8D0"), tickfont=dict(color="#A6C8D0"))
     return fig
+
+
+def metric_card(label: str, value: str, note: str) -> str:
+    return f"""
+    <div class="metric-card">
+        <div class="metric-label">{label}</div>
+        <div class="metric-value">{value}</div>
+        <div class="metric-note">{note}</div>
+    </div>
+    """
+
 
 def insight_card(title: str, analysis: str, action: str) -> None:
     st.markdown(
@@ -400,6 +424,7 @@ def insight_card(title: str, analysis: str, action: str) -> None:
         unsafe_allow_html=True,
     )
 
+
 def section_header(kicker: str, title: str, copy: str) -> None:
     st.markdown(
         f"""
@@ -409,6 +434,7 @@ def section_header(kicker: str, title: str, copy: str) -> None:
         """,
         unsafe_allow_html=True,
     )
+
 
 def describe_trend(df: pd.DataFrame) -> tuple[str, float]:
     annual = df.groupby("tahun", as_index=False)["max"].mean().sort_values("tahun")
@@ -425,11 +451,13 @@ def describe_trend(df: pd.DataFrame) -> tuple[str, float]:
         direction = "relatif fluktuatif/stabil"
     return direction, slope
 
+
 def safe_join(items: Iterable[str], max_items: int = 3) -> str:
     selected = [str(i) for i in list(items)[:max_items]]
     if not selected:
         return "-"
     return ", ".join(selected)
+
 
 # ============================================================
 # Load data
@@ -512,7 +540,7 @@ if fdf.empty:
     st.stop()
 
 # ============================================================
-# Global KPIs (Metode st.metric Bebas Error)
+# Global KPIs
 # ============================================================
 avg_ispu = fdf["max"].mean()
 unhealthy_pct = fdf["is_unhealthy_or_worse"].mean()
@@ -522,36 +550,15 @@ priority_station = station_avg.index[0] if not station_avg.empty else "-"
 obs_count = len(fdf)
 period_label = f"{start_date.strftime('%d %b %Y')} – {end_date.strftime('%d %b %Y')}"
 
-kpi_items = [
-    (
-        "Rata-rata ISPU",
-        fmt_number(avg_ispu),
-        f"Nilai rata-rata kolom max pada {obs_count:,} observasi terfilter.".replace(",", "."),
-    ),
-    (
-        "Tidak Sehat+",
-        fmt_pct(unhealthy_pct),
-        "Proporsi observasi TIDAK SEHAT, SANGAT TIDAK SEHAT, atau BERBAHAYA.",
-    ),
-    (
-        "Pencemar dominan",
-        dominant_pollutant,
-        "Parameter yang paling sering menjadi penentu nilai ISPU tertinggi.",
-    ),
-    (
-        "Stasiun prioritas",
-        priority_station.replace("DKI", "DKI ", 1),
-        "Stasiun dengan rata-rata ISPU tertinggi pada filter aktif.",
-    ),
-]
-
-# Menggunakan Streamlit native layout untuk metrik (CSS kustom sudah memformatnya secara elegan)
-kpi_cols = st.columns(4)
-for col, (label, value, note) in zip(kpi_cols, kpi_items):
-    with col:
-        st.metric(label=label, value=value)
-        # Menambahkan tag pendukung dengan unsafe_allow_html agar tidak menjadi teks mentah
-        st.markdown(f"<div class='kpi-note'>{note}</div>", unsafe_allow_html=True)
+st.markdown(
+    "<div class='metric-grid'>"
+    + metric_card("Rata-rata ISPU", fmt_number(avg_ispu), f"Nilai rata-rata kolom max pada {obs_count:,} observasi terfilter.".replace(",", "."))
+    + metric_card("Tidak Sehat+", fmt_pct(unhealthy_pct), "Proporsi observasi TIDAK SEHAT, SANGAT TIDAK SEHAT, atau BERBAHAYA.")
+    + metric_card("Pencemar dominan", dominant_pollutant, "Parameter yang paling sering menjadi penentu nilai ISPU tertinggi.")
+    + metric_card("Stasiun prioritas", priority_station.replace("DKI", "DKI ", 1), "Stasiun dengan rata-rata ISPU tertinggi pada filter aktif.")
+    + "</div>",
+    unsafe_allow_html=True,
+)
 
 st.caption(f"Periode dashboard aktif: {period_label}. Seluruh grafik dan insight mengikuti filter yang dipilih pada panel kiri.")
 
